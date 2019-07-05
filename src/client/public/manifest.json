@@ -1,0 +1,25 @@
+{
+  "background_color": "#424242",
+  "description": "An application to monitor tracking of WiFi devices.",
+  "display": "standalone",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "./img/icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./img/icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "lang": "en",
+  "name": "WiFi Tracker",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "WiFi Tracker",
+  "start_url": "/index.html",
+  "theme_color": "#FF5252"
+}

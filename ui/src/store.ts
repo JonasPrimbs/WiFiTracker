@@ -6,9 +6,33 @@ import EndPoint from './tracker/endPoint';
 
 Vue.use(Vuex);
 
-const apDict: { [name: string]: AccessPoint } = { };
-const apEpRels: { [epAddr: string]: { [apName: string]: AccessEndPointRelation } } = { };
-const epDict: { [addr: string]: EndPoint } = { };
+const apDict: { [name: string]: AccessPoint } = {
+  'AP1': new AccessPoint(null, 'AP1', null, 500, 100),
+  'AP2': new AccessPoint(null, 'AP2', null, 100, 900),
+  'AP3': new AccessPoint(null, 'AP3', null, 900, 900)
+};
+const apEpRels: { [epAddr: string]: { [apName: string]: AccessEndPointRelation } } = {
+  '12:34:56:78:90:AB': {
+    'AP1': new AccessEndPointRelation('AP1', '12:34:56:78:90:AB', -26, 0),
+    'AP2': new AccessEndPointRelation('AP2', '12:34:56:78:90:AB', -54, 0),
+    'AP3': new AccessEndPointRelation('AP3', '12:34:56:78:90:AB', -87, 0)
+  },
+  'CD:EF:12:34:56:78': {
+    'AP1': new AccessEndPointRelation('AP1', 'CD:EF:12:34:56:78', -65, 0),
+    'AP2': new AccessEndPointRelation('AP2', 'CD:EF:12:34:56:78', -35, 0),
+    'AP3': new AccessEndPointRelation('AP3', 'CD:EF:12:34:56:78', -25, 0)
+  },
+  '90:AB:CD:EF:12:34': {
+    'AP1': new AccessEndPointRelation('AP1', '90:AB:CD:EF:12:34', -35, 0),
+    'AP2': new AccessEndPointRelation('AP2', '90:AB:CD:EF:12:34', -84, 0),
+    'AP3': new AccessEndPointRelation('AP3', '90:AB:CD:EF:12:34', -56, 0)
+  }
+};
+const epDict: { [addr: string]: EndPoint } = {
+  '12:34:56:78:90:AB': new EndPoint('12:34:56:78:90:AB', true),
+  'CD:EF:12:34:56:78': new EndPoint('CD:EF:12:34:56:78', true),
+  '90:AB:CD:EF:12:34': new EndPoint('90:AB:CD:EF:12:34', false)
+};
 
 export default new Vuex.Store({
 

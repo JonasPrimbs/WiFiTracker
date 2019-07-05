@@ -1,20 +1,16 @@
-# WiFiTracker
-A Web Application to use ESP32 as a WiFi Tracker
+# WiFi Tracker
+An application to use multiple ESP32 as a tracking system for WiFi devices nearby.
 
-## Live Demo
+The project is divided into two sub projects:
+- The ESP32 Firmware to detect WiFi devices nearby.
+- The User Interface to visualize the tracked devices.
 
-Klick [here](https://wifi.primbs.dev/) to see a live demo (Google Chrome required for WebBluetooth API).
+## ESP32 Firmware
+The firmware for the ESP32 Micro Controller is described in details [here](./firmware/README.md).
 
-## Setup
+## The User Interface
+The User Interface to visualize the tracked devices is described in details [here](./ui/README.md).
 
-### Setup Arduino IDE
+A live demo of the UI can be found [here](https://wifi.primbs.dev/) (Google Chrome required for WebBluetooth API).
 
-Arduino IDE is required for compiling and uploading ESP32 Firmware to ESP32 Micro Controller.
-
-Therefore, the Arduino Extension for ESP32 by Espressif is required. It can be installed navigating in Arduino IDE to *File > Preferences (Ctrl + Comma)* and adding the following line to Additional Boards Manager URLs:
-
-```https://dl.espressif.com/dl/package_esp32_index.json```
-
-After that, go to *Tools > Board > Boards Manager...*, search for "esp32" and install *esp32 by Espressif Systems*.
-
-Now in *Tools > Board* select your ESP32 board (f.e. ESP32 Dev Module) and make sure you have selected the right COM port in *Tools > Port* (f.e. COM1).
+![UI Demo](./ui/docs/img/wifi-tracker-ui-02.png "User Interface")

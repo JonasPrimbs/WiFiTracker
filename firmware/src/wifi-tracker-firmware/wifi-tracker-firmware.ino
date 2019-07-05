@@ -1,24 +1,46 @@
-#include "esp_wifi.h"
-#include <WiFi.h>
-#include <Wire.h>
+/**
+ * WiFi Tracker Firmware
+ *
+ * Scans for WiFi probe requests to track nearby WiFi devices and sends a list of tracked MAC addresses to a connected
+ * Bluetooth LE device.
+ *
+ * This file is part of the WiFi Tracker project of Jonas Primbs.
+ * The full code of this project can be found in the official GitHub repository, see
+ * <https://www.github.com/JonasPrimbs/WiFiTracker/>
+ *
+ * @file wifi-tracker-firmware.ino
+ * @author Jonas Primbs
+ * @contact mail@jonasprimbs.de
+ */
+
+#include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h>
+#include <WiFi.h>
+#include <Wire.h>
+#include "esp_wifi.h"
 
+
+// Baud rate for serial communication.
 #define BAUD_RATE 115200
 
-// Time to sniff channel (in ms).
+// UUIDs generated with https://www.uuidgenerator.net/version4
+#define BLE_DEVICE_NAME "WiFi Tracker"
+#define BLE_SERVICE_UUID "1c8be10d-66b7-4ed5-907f-e61915e4d4e9"
+#define BLE_CHARACTERISTIC_UUID "dd4dc356-74ef-47d2-80ce-5ca331781979"
+#define BLE_CHARACTERISTIC_PROPERTIES BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE
+
+// Time to scan each channel (in ms).
 #define CHANNEL_TIME 200
 
-// Maximum WiFi Channel (EU = 13, JP = 14, US = 11).
+// Number of highest WiFi Channel to scan (EU = 13, JP = 14, US = 11).
 #define MAX_CHANNEL 13
 
-// Maximum number of seconds until device is considered as offline.
-const unsigned int DEFAULT_TTL = 60;
 
 // Maximum number of devices to store.
-const unsigned int MAX_DEVICE_COUNT = 32;
+const unsigned int MAX_DEVICE_COUNT = 100;
+
 
 // Filter to handle only necessary WiFi frames.
 const wifi_promiscuous_filter_t filt = {
@@ -26,10 +48,12 @@ const wifi_promiscuous_filter_t filt = {
 };
 
 
+// Structure to cast MAC addresses.
 typedef struct {
   uint8_t mac[6];
 } __attribute__((packed)) MacAddr;
 
+// Structure to cast WiFi management headers.
 typedef struct {
   int16_t fctl;
   int16_t duration;
@@ -40,6 +64,7 @@ typedef struct {
   unsigned char payload[];
 } __attribute__((packed)) WifiMgmtHdr;
 
+// Structure that defines tracked WiFi devices.
 struct Device {
   char addr[17];
   int rssi;
@@ -47,53 +72,83 @@ struct Device {
 };
 
 
+// Indicates, if Bluetooth LE device is connected.
+bool bleConnected = false;
+
 // Currently scanned WiFi channel.
 int currentChannel = 1;
 
+// Buffer for tracked devices.
 Device devices[MAX_DEVICE_COUNT];
+
+// Number of tracked devices.
 int deviceCount = 0;
 
-// UUIDs generated with https://www.uuidgenerator.net/version4
-#define BLE_DEVICE_NAME "WiFi Tracker"
-#define BLE_SERVICE_UUID "1c8be10d-66b7-4ed5-907f-e61915e4d4e9"
-#define BLE_CHARACTERISTIC_UUID "dd4dc356-74ef-47d2-80ce-5ca331781979"
-#define BLE_CHARACTERISTIC_PROPERTIES BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE
-
-BLEServer* pServer = NULL;
-BLEService* pService = NULL;
-BLECharacteristic* pCharacteristic = NULL;
-BLEAdvertising* pAdvertising = NULL;
-bool bleConnected = false;
+// Indicates, if old Bluetooth LE device is connected.
 bool oldBleConnected = false;
 
+// Pointer to Bluetooth LE Advertiser.
+BLEAdvertising* pAdvertising = NULL;
 
+// Pointer to Bluetooth LE Characteristic that sends the device list.
+BLECharacteristic* pCharacteristic = NULL;
+
+// Pointer to Bluetooth LE Server instance.
+BLEServer* pServer = NULL;
+
+// Pointer to Bluetooth LE Service instance.
+BLEService* pService = NULL;
+
+
+/**
+ * Class to handle Bluetooth LE Characteristic Callbacks.
+ */
+class MyCallbacks: public BLECharacteristicCallbacks {
+  /**
+   * Handles received data.
+   * @param pCharacteristic Pointer to Bluetooth LE Characteristic that received data.
+   */
+  void onWrite(BLECharacteristic* pCharacteristic) {
+    // Get received data as string.
+    std::string value = pCharacteristic->getValue();
+
+    // Ensure, that value is not empty.
+    if (value.length() > 0) {
+      // Print data to console.
+      Serial.print("[DEBUG] Data received: ");
+      for (int i = 0; i < value.length(); i++) {
+        Serial.print(value[i]);
+      }
+      Serial.println();
+    }
+  }
+};
+
+/**
+ * Class to handle Bluetooth LE Server Callbacks.
+ */
 class MyServerCallbacks: public BLEServerCallbacks {
+  /**
+   * Handles connected devices.
+   * @param pServer Pointer to Bluetooth LE Server that has a new connection.
+   */
   void onConnect(BLEServer* pServer) {
     bleConnected = true;
   };
 
+  /**
+   * Handles disconnected devices.
+   * @param pServer Pointer to Bluetooth LE Server that has was disconnected.
+   */
   void onDisconnect(BLEServer* pServer) {
     bleConnected = false;
   }
 };
 
-class MyCallbacks: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string rxValue = pCharacteristic->getValue();
 
-    if (rxValue.length() > 0) {
-      Serial.println("*********");
-      Serial.print("Received Value: ");
-      for (int i = 0; i < rxValue.length(); i++) {
-        Serial.print(rxValue[i]);
-      }
-      Serial.println();
-      Serial.println("*********");
-    }
-  }
-};
-
-
+/**
+ * Sets up the Bluetooth LE Server.
+ */
 void setupBLE() {
   Serial.println("[DEBUG] Setting up Bluetooth LE Server...");
 
@@ -124,6 +179,10 @@ void setupBLE() {
   Serial.println("[DEBUG] Bluetooth LE Server running with name '" + String(BLE_DEVICE_NAME) + "'.");
 }
 
+/**
+ * Sends a string to a connected Bluetooth LE device.
+ * @param body String to send.
+ */
 void printBLE(String body) {
   if (bleConnected) {
     Serial.println("[DEBUG] Sending message \"" + body + "\" to client...");
@@ -153,17 +212,6 @@ void bleUpdate() {
     oldBleConnected = bleConnected;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
 
 String deviceToJson(Device* device);
 

@@ -13,6 +13,9 @@
 </script>
 
 <style lang="scss">
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Helvetica Neue", Arial, sans-serif;
+  }
   .app {
     display: flex;
     min-height: 100vh;

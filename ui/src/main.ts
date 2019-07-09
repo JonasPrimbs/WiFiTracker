@@ -7,8 +7,8 @@ import App from './App.vue';
 import './registerServiceWorker';
 import store from './store';
 
-Vue.use(VueMaterial);
 Vue.use(VueKonva);
+Vue.use(VueMaterial);
 Vue.config.productionTip = false;
 
 new Vue({

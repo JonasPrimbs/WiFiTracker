@@ -1,7 +1,15 @@
 <template>
   <v-group>
-    <v-circle :config="circleConfig" @dragend="onDragend" @mouseover="onMouseover" @mouseleave="onMouseleave" />
-    <v-text :config="textConfig" :text="accessPoint.name" ref="text" v-if="hover" />
+    <v-circle
+        :config="circleConfig"
+        @dragend="$emit('dragend')"
+        @dragstart="$emit('dragstart')"
+        @mouseleave="$data.hover = false"
+        @mouseover="$data.hover = true" />
+    <v-text
+        v-if="hover"
+        :config="textConfig"
+        :text="accessPoint.name" />
   </v-group>
 </template>
 
@@ -9,31 +17,36 @@
   import { Component, Prop, Vue } from 'vue-property-decorator';
   import AccessPoint from '../tracker/accessPoint';
 
+  const DEFAULT_COLOR = 'red';
+  const DEFAULT_DRAGGABLE = false;
+  const DEFAULT_RADIUS = 10;
+  const TEXT_HEIGHT = 20;
+  const TEXT_WIDTH = 100;
+
   @Component
   export default class AccessPointElement extends Vue {
-
     /**
-     * The access point to represent.
+     * Access point to represent.
      */
     @Prop({ default: null })
     private accessPoint!: AccessPoint;
 
     /**
-     * Color of the access point.
+     * Color of the access point circle.
      */
-    @Prop({ default: 'red' })
+    @Prop({ default: DEFAULT_COLOR })
     private color!: string;
 
     /**
-     * If access point is draggable.
+     * If position of access point is draggable.
      */
-    @Prop({ default: false })
+    @Prop({ default: DEFAULT_DRAGGABLE })
     private draggable!: boolean;
 
     /**
-     * Radius of the access point.
+     * Radius of the access point circle.
      */
-    @Prop({ default: 10 })
+    @Prop({ default: DEFAULT_RADIUS })
     private radius!: number;
 
     /**
@@ -53,43 +66,23 @@
      * Configuration of text.
      */
     private get textConfig() {
-      const height = 20;
-      const width = 100;
-
       return {
         align: 'center',
         fill: this.color,
-        width,
-        x: this.circleConfig.x - width * 0.5,
-        y: this.circleConfig.y - this.circleConfig.radius * 1.5 - height,
+        height: TEXT_HEIGHT,
+        width: TEXT_WIDTH,
+        x: this.accessPoint.x - TEXT_WIDTH * 0.5,
+        y: this.accessPoint.y - this.radius * 1.5 - TEXT_HEIGHT,
       };
     }
 
+    /**
+     * Internal data.
+     */
     private data() {
       return {
         hover: false,
       };
-    }
-
-    /**
-     * Handles end of circle drag.
-     */
-    private onDragend() {
-      this.$emit('dragend');
-    }
-
-    /**
-     * Handles start of mouse over.
-     */
-    private onMouseover() {
-      this.$data.hover = true;
-    }
-
-    /**
-     * Handles end of mouse over.
-     */
-    private onMouseleave() {
-      this.$data.hover = false;
     }
   }
 </script>

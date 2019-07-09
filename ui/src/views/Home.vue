@@ -10,12 +10,13 @@
 
       <md-tabs md-alignment="centered">
         <md-tab id="ep" md-label="End Points">
-          <md-empty-state md-description="No End Points detected yet."
-                          md-icon="smartphone"
-                          md-label="No End Point found"
-                          v-if="Object.entries(endPoints).length === 0 && endPoints.constructor === Object" />
+          <md-empty-state
+              md-description="No End Points detected yet."
+              md-icon="smartphone"
+              md-label="No End Point found"
+              v-if="endPoints.length === 0" />
 
-          <md-list v-if="Object.entries(endPoints).length !== 0 || accessPoints.constructor !== Object">
+          <md-list v-if="endPoints.length !== 0">
             <md-list-item v-for="ep in endPoints" :key="ep.addr">
               <md-icon>smartphone</md-icon>
               <span class="md-list-item-text">{{ ep.addr }}</span>
@@ -25,13 +26,14 @@
         </md-tab>
 
         <md-tab id="ap" md-label="Access Points">
-          <md-empty-state md-description="Click the + Button to add an Access Point."
-                          md-icon="portable_wifi_off"
-                          md-label="No Access Point connected"
-                          v-if="Object.entries(accessPoints).length === 0 && accessPoints.constructor === Object" />
+          <md-empty-state
+              md-description="Click the + Button to add an Access Point."
+              md-icon="portable_wifi_off"
+              md-label="No Access Point connected"
+              v-if="accessPoints.length === 0" />
 
-          <md-list v-if="Object.entries(accessPoints).length !== 0 || accessPoints.constructor !== Object">
-            <md-list-item v-for="ap in accessPoints" :key="ap.addr">
+          <md-list v-if="accessPoints.length !== 0">
+            <md-list-item v-for="ap in accessPoints" :key="ap.name">
               <md-icon>wifi_tethering</md-icon>
               <span class="md-list-item-text">{{ ap.name }}</span>
               <md-button class="md-icon-button md-list-action" @click="deleteAP(ap)">
@@ -62,11 +64,11 @@
         <md-icon>menu</md-icon>
       </md-button>
 
-      <TrackMap :accessEndPointRelations="accessEndPointRelations"
-                :accessPoints="accessPoints"
-                :endPoints="endPoints"
-                :lockAccessPoints="lockAccessPoints"
-                :size="{ height: windowHeight, width: windowWidth }" />
+      <TrackMap
+          :accessPoints="accessPoints"
+          :accessPointsDraggable="!lockAccessPoints"
+          :endPoints="endPoints"
+          :size="{ height: windowHeight, width: windowWidth }" />
 
       <AddAccessPointDialog ref="apDialog" />
 
@@ -81,7 +83,7 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue, Watch } from 'vue-property-decorator';
+import { Component, Vue } from 'vue-property-decorator';
 import AddAccessPointDialog from '../components/AddAccessPointDialog.vue';
 import TrackMap from '../components/TrackMap.vue';
 import AccessEndPointRelation from '../tracker/accessEndPointRelation';
@@ -104,30 +106,17 @@ export default class Home extends Vue {
   };
 
   /**
-   * Gets relations from end points to access points.
+   * Gets a list of all access points.
    */
-  private get accessEndPointRelations(): { [epAddr: string]: { [apName: string]: AccessEndPointRelation } } {
-    return this.$store.state.accessEndPointRelations;
+  private get accessPoints(): AccessPoint[] {
+    return this.$store.getters.accessPoints;
   }
 
   /**
-   * Gets the access points.
+   * Gets a list of all end points.
    */
-  private get accessPoints(): { [name: string]: AccessPoint } {
-    return this.$store.state.accessPoints;
-  }
-
-  /**
-   * Gets the end points.
-   */
-  private get endPoints(): { [addr: string]: EndPoint } {
-    return this.$store.state.endPoints;
-  }
-  /**
-   * Sets the end points.
-   */
-  private set endPoints(value: { [addr: string]: EndPoint }) {
-    this.$store.commit('updateAccessPoints', value);
+  private get endPoints(): EndPoint[] {
+    return this.$store.getters.endPoints;
   }
 
   /**
@@ -156,8 +145,9 @@ export default class Home extends Vue {
    * @param ap Access point to delete.
    */
   private deleteAP(ap: AccessPoint) {
-    this.$store.commit('deleteAccessPoint', ap);
-    this.showMessage('Access Point "' + ap.name + '" deleted');
+    this.$store.dispatch('deleteAccessPoint', ap).then(() => {
+      this.showMessage(`Access Point "${ ap.name }" deleted`);
+    });
   }
 
   /**
@@ -167,26 +157,6 @@ export default class Home extends Vue {
     this.$nextTick(function() {
       window.addEventListener('resize', this.onWindowSizeChange);
     });
-  }
-
-  /**
-   * Handles changed access points.
-   * @param val New value of access point.
-   * @param oldVal Old value of access point.
-   */
-  @Watch('accessPoints', { deep: true })
-  private onAccessPointsChanged(val: { [name: string]: AccessPoint }, oldVal: { [name: string]: AccessPoint }) {
-    this.$store.commit('updateAccessPoints', val);
-  }
-
-  /**
-   * Handles changed end points.
-   * @param val New value of end points.
-   * @param oldVal Old value of end points.
-   */
-  @Watch('endPoints', { deep: true })
-  private onEndPointsChanged(val: { [addr: string]: EndPoint }, oldVal: { [addr: string]: EndPoint }) {
-    this.$store.commit('updateEndPoints', val);
   }
 
   /**
@@ -204,7 +174,9 @@ export default class Home extends Vue {
   private showAPDialog(): void {
     this.$refs.apDialog.showDialog().then((ap: AccessPoint) => {
       this.showMessage('Access Point "' + ap.name + '" was added');
-      this.$store.commit('addAccessPoint', ap);
+      this.$store.dispatch('addAccessPoint', ap).then(() => {
+        this.showMessage(`Access Point "${ ap.name }" added`);
+      });
     }).catch((error) => {
       console.error(error);
       this.showMessage('Device selection was cancelled');

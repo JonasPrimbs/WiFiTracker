@@ -44,11 +44,16 @@ export default class AddAccessPointDialog extends Vue {
     return new Promise((resolve, reject) => {
       // "Subscribe" apply method to resolve the new access point.
       this.onApply = (ap) => {
+        this.reset();
         resolve(ap);
       };
 
       // "Subscribe" cancel method to reject if canceled.
       this.onCancel = () => {
+        if (this.$data.tempDevice != null) {
+          this.$data.tempDevice.gatt.disconnect();
+        }
+        this.reset();
         reject();
       };
     });
@@ -135,6 +140,7 @@ export default class AddAccessPointDialog extends Vue {
       selecting: false,
       show: false,
       state: 'Select a tracking device',
+      tempDevice: null,
     };
   }
 
@@ -148,9 +154,6 @@ export default class AddAccessPointDialog extends Vue {
       this.$data.apName,
       this.$data.characteristic,
     );
-
-    // Reset the dialog.
-    this.reset();
 
     // Apply dialog.
     this.onApply(result);
@@ -236,6 +239,7 @@ export default class AddAccessPointDialog extends Vue {
         serviceUuid,
       ],
     }).then((device: any) => {
+      this.$data.tempDevice = device;
       this.connectDevice(device, serviceUuid, characteristicUuid, (state: string) => {
         this.$data.state = state;
       }).then((characteristic: any) => {
@@ -251,7 +255,7 @@ export default class AddAccessPointDialog extends Vue {
         this.$data.currentStep = 'edit';
       }).catch((error: { message: string, error: any }) => {
         // Error connecting to device -> Show error.
-        console.error('Error connecting to tracking device: ', error);
+        console.error('Error connecting to tracking device: ', error, device);
         this.$data.deviceError = error.message;
       });
     }).catch((error: any) => {
@@ -277,6 +281,7 @@ export default class AddAccessPointDialog extends Vue {
     this.$data.selecting = false;
     this.$data.show = false;
     this.$data.state = 'Select a tracking device';
+    this.$data.tempDevice = null;
   }
 }
 </script>

@@ -6,145 +6,368 @@ import EndPoint from './tracker/endPoint';
 
 Vue.use(Vuex);
 
-const apDict: { [name: string]: AccessPoint } = {
-  'AP1': new AccessPoint(null, 'AP1', null, 500, 100),
-  'AP2': new AccessPoint(null, 'AP2', null, 100, 900),
-  'AP3': new AccessPoint(null, 'AP3', null, 900, 900)
-};
-const apEpRels: { [epAddr: string]: { [apName: string]: AccessEndPointRelation } } = {
-  '12:34:56:78:90:AB': {
-    'AP1': new AccessEndPointRelation('AP1', '12:34:56:78:90:AB', -26, 0),
-    'AP2': new AccessEndPointRelation('AP2', '12:34:56:78:90:AB', -54, 0),
-    'AP3': new AccessEndPointRelation('AP3', '12:34:56:78:90:AB', -87, 0)
-  },
-  'CD:EF:12:34:56:78': {
-    'AP1': new AccessEndPointRelation('AP1', 'CD:EF:12:34:56:78', -65, 0),
-    'AP2': new AccessEndPointRelation('AP2', 'CD:EF:12:34:56:78', -35, 0),
-    'AP3': new AccessEndPointRelation('AP3', 'CD:EF:12:34:56:78', -25, 0)
-  },
-  '90:AB:CD:EF:12:34': {
-    'AP1': new AccessEndPointRelation('AP1', '90:AB:CD:EF:12:34', -35, 0),
-    'AP2': new AccessEndPointRelation('AP2', '90:AB:CD:EF:12:34', -84, 0),
-    'AP3': new AccessEndPointRelation('AP3', '90:AB:CD:EF:12:34', -56, 0)
-  }
-};
-const epDict: { [addr: string]: EndPoint } = {
-  '12:34:56:78:90:AB': new EndPoint('12:34:56:78:90:AB', true),
-  'CD:EF:12:34:56:78': new EndPoint('CD:EF:12:34:56:78', true),
-  '90:AB:CD:EF:12:34': new EndPoint('90:AB:CD:EF:12:34', false)
-};
+const aeprDict: { [apName: string]: { [epName: string]: number } } = {};
+const aeprList: AccessEndPointRelation[] = [];
+const apDict: { [name: string]: number } = {};
+const apList: AccessPoint[] = [];
+const epDict: { [addr: string]: number } = {};
+const epList: EndPoint[] = [];
+const eaprDict: { [epAddr: string]: { [apName: string]: number } } = {};
 
 export default new Vuex.Store({
+  actions: {
+    /**
+     * Adds a new access point.
+     * @param context Context of store.
+     * @param ap Access point to add.
+     */
+    addAccessPoint(context, ap: AccessPoint): Promise<void> {
+      return new Promise((resolve, reject) => {
+        // Add access point to list of access points.
+        context.commit('addAccessPoint', ap);
+
+        // Define, how access points notifications should be handled.
+        ap.startListen((data: { ap: AccessPoint, value: any }) => {
+          data.value.devices.forEach(async (ep: { addr: string, rssi: number }) => {
+            // Add end point if unknown.
+            if (!(ep.addr in context.state._epDict)) {
+              context.commit('addEndPoint', new EndPoint(ep.addr));
+            }
+
+            // Add or update relation between access point and endpoint.
+            const aepr = new AccessEndPointRelation(data.ap.name, ep.addr, ep.rssi, Date.now());
+            await context.dispatch('changeAccessEndPointRelation', aepr);
+          });
+        });
+
+        resolve();
+      });
+    },
+
+    /**
+     * Adds or updates a relation between an access point and an end point.
+     * @param context Context of storage.
+     * @param aepr Relation between access point and end point to add or update.
+     */
+    changeAccessEndPointRelation(context, aepr: AccessEndPointRelation): Promise<void> {
+      return new Promise((resolve, reject) => {
+        // Add or update the relation.
+        // Check, if relations to end point exists.
+        if (aepr.epAddr in context.state._eaprDict) {
+          // Get relations to access points.
+          const aprs = context.state._eaprDict[aepr.epAddr];
+
+          // Check, if relation between access point and end point exists.
+          if (aepr.apName in aprs) {
+            // Update relation.
+            context.commit('updateApEpRelation', aepr);
+          } else {
+            // Add access point relation to existing end point relation.
+            context.commit('addApRelation', aepr);
+          }
+        } else {
+          // Add new relation between access point and end point.
+          context.commit('addApEpRelation', aepr);
+        }
+
+        // Recalculate the position of the access point.
+        context.commit('updateEpPosition', aepr.epAddr);
+
+        resolve();
+      });
+    },
+
+    /**
+     * Deletes an access point.
+     * @param context Context of store.
+     * @param apName Name of Access point to delete.
+     */
+    deleteAccessPoint(context, apName: string): Promise<void> {
+      return new Promise((resolve, reject) => {
+        // Delete relation between access point and all of its end points.
+        for (const epName  in context.state._eaprDict) {
+          if (context.state._eaprDict.hasOwnProperty(epName)) {
+            const epRel = context.state._eaprDict[epName];
+            if (apName in epRel) {
+              context.commit('deleteAccessEndPointRelation', { apName, epName });
+            }
+          }
+        }
+
+        // Delete access point from index and list.
+        context.commit('deleteAccessPoint', apName);
+
+        resolve();
+      });
+    },
+
+    /**
+     * Update the position of an access point.
+     * @param context Context of store.
+     * @param options Options relevant to updat eccess point position.
+     */
+    updateAccessPointPosition(context, options: { apName: string, x: number, y: number }): Promise<void> {
+      return new Promise((resolve, reject) => {
+        // Update position of access point.
+        context.commit('updateApPosition', options);
+
+        // Update positions of end points.
+        const aprs = context.state._aeprDict[options.apName];
+        for (const epAddr in aprs) {
+          if (aprs.hasOwnProperty(epAddr)) {
+            context.commit('updateEpPosition', epAddr);
+          }
+        }
+
+        resolve();
+      });
+    },
+  },
 
   mutations: {
     /**
-     * Adds or updates the relation between an access point and an end point.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Adds an access point to list and indexes it.
      * @param state Storage state.
-     * @param rel Relation to add.
+     * @param ap Access point to add.
      */
-    addAccessEndPointRelation(state, rel: AccessEndPointRelation) {
-      // Search for relation to end point.
-      if (rel.epAddr in state.accessEndPointRelations) {
-        // Relation to end point found -> Search for relation to access point.
-        const relations = state.accessEndPointRelations[rel.epAddr];
+    addAccessPoint(state, ap: AccessPoint): void {
+      // Add access point list.
+      const newLength = state._apList.push(ap);
 
-        if (rel.apName in relations) {
-          // Relation to access point found -> Update relation.
-          relations[rel.apName].update(rel.rssi, rel.timestamp);
-        } else {
-          // Relation to access point not found -> Add relation.
-          relations[rel.apName] = rel;
-        }
+      // Index the access point.
+      state._apDict[ap.name] = newLength - 1;
+    },
+
+    /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Adds a new relation between an access point and an end point.
+     * @param state Storage state.
+     * @param aepr Relation between access point and end point to add.
+     */
+    addApEpRelation(state, aepr: AccessEndPointRelation): void {
+      // Add relation to list.
+      const newLength = state._aeprList.push(aepr);
+
+      // Get Index of new relation.
+      const index = newLength - 1;
+
+      // Add index ep-ap-dictionary.
+      if (aepr.epAddr in state._eaprDict) {
+        state._eaprDict[aepr.epAddr][aepr.apName] = index;
       } else {
-        // Relation to end point not found -> Create relation.
-        state.accessEndPointRelations[rel.epAddr] = {
-          [rel.apName]: rel,
+        state._eaprDict[aepr.epAddr] = {
+          [aepr.apName]: index,
+        };
+      }
+
+      // Add index to ap-ep dictionary.
+      if (aepr.apName in state._aeprDict) {
+        state._aeprDict[aepr.apName][aepr.epAddr] = index;
+      } else {
+        state._aeprDict[aepr.apName] = {
+          [aepr.epAddr]: index,
         };
       }
     },
 
     /**
-     * Adds a new access point.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Adds a relation between an access point and an end point to an existing end point relation.
      * @param state Storage state.
-     * @param ap Access point to add.
+     * @param aepr Relation between access point and end point to add.
      */
-    addAccessPoint(state, ap: AccessPoint) {
-      // Add access point to dictionary of access points indexed by name, overriding older.
-      state.accessPoints[ap.name] = ap;
-      ap.startListen((data: any) => {
-        const value = data.value;
+    addApRelation(state, aepr: AccessEndPointRelation): void {
+      // Add relation to list.
+      const newLength = state._aeprList.push(aepr);
 
-        value.devices.forEach((ep: { addr: string, rssi: number, timestamp: number }) => {
-          if (!(ep.addr in state.endPoints)) {
-            state.endPoints[ep.addr] = new EndPoint(ep.addr);
-          }
+      // Get index of new relation in list.
+      const index = newLength - 1;
 
-          if (ep.addr in state.accessEndPointRelations && data.ap.name in state.accessEndPointRelations[ep.addr]) {
-            state.accessEndPointRelations[ep.addr][data.ap.name].update(ep.rssi, ep.timestamp);
-          } else {
-            const aepr = new AccessEndPointRelation(data.ap.name, ep.addr, ep.rssi, ep.timestamp);
-            state.accessEndPointRelations[ep.addr] = {
-              [data.ap.name]: aepr,
-            };
-          }
-        });
-      });
+      // Add relation between end point and access point to dictionary.
+      state._eaprDict[aepr.epAddr][aepr.apName] = index;
+
+      // Add relation between access point and end point to dictionary.
+      if (aepr.apName in state._aeprDict) {
+        state._aeprDict[aepr.apName][aepr.epAddr] = index;
+      } else {
+        state._aeprDict[aepr.apName] = {
+          [aepr.epAddr]: index,
+        };
+      }
     },
 
     /**
-     * Adds a new end point.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Adds a new end point to list and indexes it.
      * @param state Storage state.
      * @param ep End point to add.
      */
-    addEndPoint(state, ep: EndPoint) {
-      // Add end point to dictionary of end points indexed by MAC address, overriding older.
-      state.endPoints[ep.addr] = ep;
+    addEndPoint(state, ep: EndPoint): void {
+      // Add end point to list.
+      const newLength = state._epList.push(ep);
+
+      // Index the end point.
+      state._epDict[ep.addr] = newLength - 1;
     },
 
     /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
      * Deletes an access point.
      * @param state Storage state.
-     * @param ap Access point to delete.
+     * @param ap Name of access point to delete.
      */
-    deleteAccessPoint(state, ap: AccessPoint) {
-      ap.stopListen();
-      delete state.accessPoints[ap.name];
+    deleteAccessPoint(state, apName: string): void {
+      const index = state._apDict[apName];
+      delete state._apDict[index];
+      // TODO: Remove access point from array and update dictionary.
+      // state._accessPoints[index] = null;
     },
 
     /**
-     * Updates the end point dictionary.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Updates the position of an access point.
      * @param state Storage state.
-     * @param eps Updated end point dictionary.
+     * @param options Data required to update position of an access point.
      */
-    updateEndPoints(state, eps: { [addr: string]: EndPoint }) {
-      state.endPoints = eps;
+    updateApPosition(state, options: { apName: string, x: number, y: number }): void {
+      const index = state._apDict[options.apName];
+      const instance = state._apList[index];
+      instance.x = options.x;
+      instance.y = options.y;
     },
 
     /**
-     * Updates the access point dictionary.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Updates the position of an end point.
      * @param state Storage state.
-     * @param aps Updated access point dictionary.
+     * @param epAddr MAC address of end point to update.
      */
-    updateAccessPoints(state, aps: { [name: string]: AccessPoint }) {
-      state.accessPoints = aps;
+    updateEpPosition(state, epAddr: string): void {
+      // Get end point whose position will be updated.
+      const index = state._epDict[epAddr];
+      const ep = state._epList[index];
+
+      // Get dictionary with all access point relations.
+      const aeprs = state._eaprDict[epAddr];
+
+      // Create temporary list of trilateration relevant triples.
+      const rssis: Array<{ rssi: number, x: number, y: number }> = [];
+
+      const timeOffset = Date.now() - 10000;
+
+      for (const apName in aeprs) {
+        // Ensure, that apName is property of aeprs.
+        if (!aeprs.hasOwnProperty(apName)) {
+          continue;
+        }
+
+        // Get relation instance.
+        const relationIndex = aeprs[apName];
+        const relation = state._aeprList[relationIndex];
+
+        // Filter all relations older than time offset.
+        if (relation.timestamp < timeOffset) {
+          continue;
+        }
+
+        // Get access point instance.
+        const apIndex = state._apDict[relation.apName];
+        const ap = state._apList[apIndex];
+
+        // Create new triple and add it to temporary list.
+        const rssi = {
+          rssi: relation.rssi,
+          x: ap.x,
+          y: ap.y,
+        };
+        rssis.push(rssi);
+      }
+
+      // Trilaterate the position of the end point.
+      ep.trilateratePosition(rssis);
+    },
+
+    /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Updates an existing relation between an access point and an end point.
+     * @param state Storage state.
+     * @param aepr New relation between access point and end point.
+     */
+    updateApEpRelation(state, aepr: AccessEndPointRelation): void {
+      // Get index of relation to update.
+      const index = state._eaprDict[aepr.epAddr][aepr.apName];
+
+      // Get instance of relation to update.
+      const eapr = state._aeprList[index];
+
+      // Update properties.
+      eapr.rssi = aepr.rssi;
+      eapr.timestamp = aepr.timestamp;
     },
   },
 
   state: {
     /**
-     * Dictionary that maps MAC addresses of end points to a dictionary that maps names of access points to the
-     * relation between access point and end point.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Dictionary, that maps names of end points to a dictionary, that maps MAC addresses of end points to the
+     * index of relation between access point and end point in state._aeprList.
      */
-    accessEndPointRelations: apEpRels,
+    _aeprDict: aeprDict,
 
     /**
-     * Dictionary that maps names of access points to their instance.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * List of relations between access points and end points.
      */
-    accessPoints: apDict,
+    _aeprList: aeprList,
 
     /**
-     * Dictionary that maps MAC addresses of end points to their instance.
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Dictionary, that maps names of access points to index of instance in state._apList.
      */
-    endPoints: epDict,
+    _apDict: apDict,
+
+    /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * List of access points.
+     */
+    _apList: apList,
+
+    /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Dictionary, that maps MAC addresses of end points to a dictionary, that maps names of access points to the
+     * index of relation between access point and end point in state._aeprList.
+     */
+    _eaprDict: eaprDict,
+
+    /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Dictionary, that maps MAC addresses of end points to index of instance in state._epList.
+     */
+    _epDict: epDict,
+
+    /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * List of end points.
+     */
+    _epList: epList,
+  },
+
+  getters: {
+    /**
+     * Gets a list of all access points.
+     * @param state Storage state.
+     */
+    accessPoints(state): AccessPoint[] {
+      return state._apList;
+    },
+
+    /**
+     * Gets a list of all end points.
+     * @param state Storage state.
+     */
+    endPoints(state): EndPoint[] {
+      return state._epList;
+    },
   },
 });

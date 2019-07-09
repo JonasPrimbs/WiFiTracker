@@ -8,9 +8,11 @@
  * The full code of this project can be found in the official GitHub repository, see
  * <https://www.github.com/JonasPrimbs/WiFiTracker/>
  *
- * @file wifi-tracker-firmware.ino
  * @author Jonas Primbs
  * @contact mail@jonasprimbs.de
+ * @date: 07.07.2019
+ * @file wifi-tracker-firmware.ino
+ * @version 1.1
  */
 
 #include <BLE2902.h>
@@ -68,7 +70,6 @@ typedef struct {
 struct Device {
   char addr[17];
   int rssi;
-  long timestamp;
 };
 
 
@@ -197,62 +198,75 @@ void printBLE(String body) {
   }
 }
 
+/**
+ * Updates the Bluetooth LE connection state.
+ */
 void bleUpdate() {
-  // disconnecting
+  // Check if client has disconnected.
   if (!bleConnected && oldBleConnected) {
-    delay(500); // give the bluetooth stack the chance to get things ready
-    pServer->startAdvertising(); // restart advertising
-    Serial.println("start advertising");
+    // Wait until Bluetooth stack is ready.
+    delay(500);
+
+    // Restart the advertising.
+    pAdvertising->start();
+
+    // Update connection state.
     oldBleConnected = bleConnected;
   }
 
-  // connecting
+  // Check if client has connected.
   if (bleConnected && !oldBleConnected) {
-    // do stuff here on connecting
+    // Stop advertising so that no other device can connect.
+    pAdvertising->stop();
+
+    // Update connection state.
     oldBleConnected = bleConnected;
   }
 }
 
-String deviceToJson(Device* device);
-
+/**
+ * Gets a JSON-String representation of a device.
+ * @param device Device to get JSON-String representation of.
+ * @returns JSON-String representation of device.
+ */
 String deviceToJson(Device* device) {
-  String addr(device->addr);
-  String result = String("{ \"addr\": \"") + addr + String("\", \"rssi\": ") + String(device->rssi) + String(", \"timestamp\": ") + String(device->timestamp) + String(" }");
+  String result = String("{ \"addr\": \"") + String(device->addr)
+    + String("\", \"rssi\": ") + String(device->rssi)
+    + String(" }");
   return result;
 }
 
 /**
  * Extracts the source MAC address from the WiFi packet payload.
- * 
  * @param payload Pointer to payload of WiFi packet.
- * @return Source MAC address in format 567890ABCDEF
+ * @return Source MAC address in format 56:78:90:ab:cd:ef
  */
 void extractSrcAddr(const uint8_t* payload, char* dst) {
-  String preMac;
+  int j = 0;
 
-  // Read MAC address from payload.
-  for (int i = 8; i < 8+6+2; i++) {
-    // Convert byte to HEX-string.
-    String newByte = String(payload[i], HEX);
+  for (int i = 0; i < 6; i++) {
+    // Calculate index of current MAC address byte in payload.
+    int byteIndex = i + 10;
 
-    // Fill up first HEX-digit if necessary.
-    if (newByte.length() == 1) {
-      newByte = "0" + newByte;
+    // Convert current byte of MAC address to HEX representation and write it to dst.
+    if (payload[byteIndex] < 16) {
+      // Byte in HEX has a leading '0'.
+      char tmp[1];
+      itoa(payload[byteIndex], tmp, 16);
+      dst[i+j] = '0';
+      dst[i+j+1] = tmp[0];
+    } else {
+      // Byte in HEX has no leading '0'.
+      char tmp[2];
+      itoa(payload[byteIndex], tmp, 16);
+      dst[i+j] = tmp[0];
+      dst[i+j+1] = tmp[1];
     }
 
-    // Add HEX-representation of byte to pre MAC.
-    preMac += newByte;
-  }
-  char mac[16];
-  preMac.toCharArray(mac, preMac.length());
-  // Clean up the mac address.
-  int j = 0;
-  for (int i = 4; i < 16; i++) {
-    dst[j] = mac[i];
-    j++;
-    if (j == 2 || j == 5 || j == 8 || j == 11 || j == 14) {
-      dst[j] = ':';
-      j++;
+    // Add ':' between MAC address bytes.
+    if (i < 5) {
+      dst[i+j+2] = ':';
+      j+= 2;
     }
   }
 }
@@ -272,7 +286,6 @@ void updateDevice(char* addr, int rssi) {
     if (strcmp(devices[i].addr, addr) == 0) {
       // Device found.
       devices[i].rssi = rssi;
-      devices[i].timestamp = millis();
       index = i;
       break;
     }
@@ -290,7 +303,6 @@ void updateDevice(char* addr, int rssi) {
     for (int i = 0; i < 17; i++) {
       devices[deviceCount].addr[i] = addr[i];
     }
-    devices[deviceCount].timestamp = 0;
     devices[deviceCount].rssi = rssi;
 
     Serial.println("[DEBUG] Device found: " + deviceToJson(&devices[deviceCount]));

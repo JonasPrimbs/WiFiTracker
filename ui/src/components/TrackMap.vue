@@ -1,27 +1,28 @@
 <template>
-  <v-stage ref="stage"
-           :config="size"
-           :draggable="true"
-           @dragend="onMapDragend"
-           @dragstart="onDragStart">
+  <v-stage
+      ref="stage"
+      :config="size"
+      :draggable="true"
+      @dragend="onMapDragend"
+      @dragstart="onDragStart">
     <v-layer>
       <v-group v-for="ap in accessPoints" :key="ap.name">
-        <AccessPointMapElement :accessPoint="ap"
-                               :color="apColor"
-                               :draggable="!lockAccessPoints"
-                               :radius="apRadius"
-                               @dragend="() => { onApDragend(ap); }"
-                               @dragstart="onDragStart" />
+        <AccessPointMapElement
+            :accessPoint="ap"
+            :color="apColor"
+            :draggable="accessPointsDraggable"
+            :radius="apRadius"
+            @dragend="() => { onApDragend(ap); }"
+            @dragstart="onDragStart" />
       </v-group>
     </v-layer>
     <v-layer>
       <v-group v-for="ep in endPoints" :key="ep.addr">
-        <EndPointMapElement v-if="ep.enabled"
-                            :accessPointRelations="getAccessPointRelations(ep.addr)"
-                            :accessPoints="accessPoints"
-                            :color="epColor"
-                            :endPoint="ep"
-                            :radius="epRadius" />
+        <EndPointMapElement
+            v-if="ep.enabled"
+            :color="epColor"
+            :endPoint="ep"
+            :radius="epRadius" />
       </v-group>
     </v-layer>
   </v-stage>
@@ -29,10 +30,9 @@
 
 <script lang="ts">
 import Stage from 'vue-konva';
-import { Component, Prop, Vue } from 'vue-property-decorator';
+import { Component, Prop, Vue, Watch } from 'vue-property-decorator';
 import AccessPointMapElement from '../components/AccessPointMapElement.vue';
 import EndPointMapElement from '../components/EndPointMapElement.vue';
-import AccessEndPointRelation from '../tracker/accessEndPointRelation';
 import AccessPoint from '../tracker/accessPoint';
 import EndPoint from '../tracker/endPoint';
 
@@ -44,31 +44,27 @@ import EndPoint from '../tracker/endPoint';
 })
 export default class TrackMap extends Vue {
 
-  public $refs!: { stage: any };
+  public $refs!: {
+    stage: any,
+  };
 
   /**
-   * Dictionary of relations between access points and end points.
+   * List of all displayed access points.
    */
-  @Prop({ default: {} })
-  private accessEndPointRelations!: { [addr: string]: { [name: string]: AccessEndPointRelation } };
+  @Prop({ default: [] })
+  private accessPoints!: AccessPoint[];
 
   /**
-   * Dictionary of displayed access points.
+   * If access points are draggable.
    */
-  @Prop({ default: 'accessPoints' })
-  private accessPoints!: { [name: string]: AccessPoint };
+  @Prop({ default: true })
+  private accessPointsDraggable!: boolean;
 
   /**
    * Dictionary of displayed end points.
    */
-  @Prop({ default: {} })
-  private endPoints!: { [addr: string]: EndPoint };
-
-  /**
-   * If access points are locked.
-   */
-  @Prop({ default: true })
-  private lockAccessPoints!: boolean;
+  @Prop({ default: [] })
+  private endPoints!: EndPoint[];
 
   /**
    * Size of map.
@@ -76,6 +72,9 @@ export default class TrackMap extends Vue {
   @Prop({ default: { height: 100, width: 100 } })
   private size!: { height: number, width: number };
 
+  /**
+   * Internal data.
+   */
   private data() {
     return {
       apColor: '#ff5252',
@@ -94,20 +93,6 @@ export default class TrackMap extends Vue {
   }
 
   /**
-   * Gets the relations to access points by end point's MAC address.
-   */
-  private getAccessPointRelations(epAddr: string) {
-    // Ensure that relation to requested end point exists.
-    if (epAddr in this.accessEndPointRelations) {
-      // Relation found -> Return it.
-      return this.accessEndPointRelations[epAddr];
-    } else {
-      // No relation found -> Return empty.
-      return {};
-    }
-  }
-
-  /**
    * Handles end of access point dragging.
    */
   private onApDragend(ap: AccessPoint) {
@@ -121,7 +106,7 @@ export default class TrackMap extends Vue {
     };
 
     // Update access point position.
-    ap.updatePosition(newPos.x, newPos.y);
+    this.$store.dispatch('updateAccessPointPosition', { apName: ap.name, x: newPos.x, y: newPos.y });
   }
 
   /**

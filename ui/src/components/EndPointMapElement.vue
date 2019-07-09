@@ -1,162 +1,78 @@
 <template>
   <v-group>
-    <v-circle :config="circleConfig" @mouseover="onMouseover" @mouseleave="onMouseleave" />
-    <v-text :config="textConfig" :text="endPoint.addr" ref="text" v-if="hover" />
+    <v-circle
+        :config="circleConfig"
+        @mouseleave="$data.hover = false"
+        @mouseover="$data.hover = true" />
+    <v-text
+        v-if="hover"
+        :config="textConfig"
+        :text="endPoint.addr" />
   </v-group>
 </template>
 
 <script lang="ts">
-import { Component, Prop, Vue } from 'vue-property-decorator';
-import AccessEndPointRelation from '../tracker/accessEndPointRelation';
-import AccessPoint from '../tracker/accessPoint';
-import EndPoint from '../tracker/endPoint';
+  import { Component, Prop, Vue } from 'vue-property-decorator';
+  import EndPoint from '../tracker/endPoint';
 
-@Component
-export default class EndPointElement extends Vue {
+  const DEFAULT_COLOR = 'blue';
+  const DEFAULT_RADIUS = 5;
+  const TEXT_HEIGHT = 20;
+  const TEXT_WIDTH = 150;
 
-  /**
-   * Relations to access points.
-   */
-  @Prop({ default: {} })
-  private accessPointRelations!: { [name: string]: AccessEndPointRelation };
+  @Component
+  export default class EndPointElement extends Vue {
+    /**
+     * End point to represent.
+     */
+    @Prop({ default: null })
+    private endPoint!: EndPoint;
 
-  /**
-   * Access points.
-   */
-  @Prop({ default: {} })
-  private accessPoints!: { [name: string]: AccessPoint };
+    /**
+     * Color of the end point circle.
+     */
+    @Prop({ default: DEFAULT_COLOR })
+    private color!: string;
 
-  /**
-   * The end point to represent.
-   */
-  @Prop({ default: null })
-  private endPoint!: EndPoint;
+    /**
+     * Radius of the end point circle.
+     */
+    @Prop({ default: DEFAULT_RADIUS })
+    private radius!: number;
 
-  /**
-   * Color of the end point.
-   */
-  @Prop({ default: 'blue' })
-  private color!: string;
-
-  /**
-   * Radius of the end point.
-   */
-  @Prop({ default: 5 })
-  private radius!: number;
-
-  /**
-   * Configuration of circle.
-   */
-  private get circleConfig() {
-    const position = this.trilateratePosition(this.accessPointRelations, this.accessPoints);
-
-    return {
-      fill: this.color,
-      radius: this.radius,
-      x: position.x,
-      y: position.y,
-    };
-  }
-
-  /**
-   * Configuration of text.
-   */
-  private get textConfig() {
-    const height = 20;
-    const width = 150;
-
-    return {
-      align: 'center',
-      fill: this.color,
-      height,
-      width,
-      x: this.circleConfig.x - width * 0.5,
-      y: this.circleConfig.y - this.circleConfig.radius * 1.5 - height,
-    };
-  }
-
-  private data() {
-    return {
-      hover: false,
-    };
-  }
-
-  /**
-   * Handles end of circle drag.
-   */
-  private onDragend() {
-    this.$emit('dragend');
-  }
-
-  /**
-   * Handles start of mouse over.
-   */
-  private onMouseover() {
-    this.$data.hover = true;
-  }
-
-  /**
-   * Handles end of mouse over.
-   */
-  private onMouseleave() {
-    this.$data.hover = false;
-  }
-
-  /**
-   * Trilaterates the position using the relations to access points.
-   * @param apRelations Relations to access points.
-   */
-  private trilateratePosition(
-    apRelations: { [name: string]: AccessEndPointRelation },
-    accessPoints: { [name: string]: AccessPoint }): { x: number, y: number } {
-    // Create sum of RSSI values.
-    let sum = 0;
-
-    // Create list of (rssi, x, y) triple.
-    const rssis = [];
-
-    for (const apName in apRelations) {
-      // Ensure that apName is an existing key.
-      if (!apRelations.hasOwnProperty(apName)) {
-        continue;
-      }
-
-      // Ensure that x and y position of access point is available
-      if (!(apName in accessPoints)) {
-        continue;
-      }
-
-      // Get access point by name.
-      const ap = accessPoints[apName];
-
-      // Get relation by access point's name.
-      const rel = apRelations[apName];
-
-      // Add values to tiple list
-      rssis.push({
-        rssi: 100 + rel.rssi,
-        x: ap.x,
-        y: ap.y,
-      });
-
-      // Add RSSI value to RSSI values.
-      sum += 100 + rel.rssi;
+    /**
+     * Configuration of circle.
+     */
+    private get circleConfig() {
+      return {
+        fill: this.endPoint.unknownPosition ? 'yellow' : this.color,
+        radius: this.radius,
+        x: this.endPoint.x,
+        y: this.endPoint.y,
+      };
     }
 
-    // Generate temporary result.
-    const result = {
-      x: 0,
-      y: 0,
-    };
+    /**
+     * Configuration of text.
+     */
+    private get textConfig() {
+      return {
+        align: 'center',
+        fill: this.endPoint.unknownPosition ? 'yellow' : this.color,
+        height: TEXT_HEIGHT,
+        width: TEXT_WIDTH,
+        x: this.endPoint.x - TEXT_WIDTH * 0.5,
+        y: this.endPoint.y - this.circleConfig.radius * 1.5 - TEXT_HEIGHT,
+      };
+    }
 
-    // Add weighted positions of access point positions to result.
-    rssis.forEach((i) => {
-      const proportion = i.rssi / sum;
-      result.x += i.x * proportion;
-      result.y += i.y * proportion;
-    });
-
-    return result;
+    /**
+     * Internal data.
+     */
+    private data() {
+      return {
+        hover: false,
+      };
+    }
   }
-}
 </script>

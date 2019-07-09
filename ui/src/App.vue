@@ -13,6 +13,7 @@
 </script>
 
 <style lang="scss">
+  @import url('//fonts.googleapis.com/css?family=Roboto:400,500,700,400italic|Material+Icons');
   .app {
     display: flex;
     min-height: 100vh;

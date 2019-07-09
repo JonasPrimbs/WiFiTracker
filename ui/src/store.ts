@@ -29,14 +29,20 @@ export default new Vuex.Store({
         // Define, how access points notifications should be handled.
         ap.startListen((data: { ap: AccessPoint, value: any }) => {
           data.value.devices.forEach(async (ep: { addr: string, rssi: number }) => {
-            // Add end point if unknown.
-            if (!(ep.addr in context.state._epDict)) {
-              context.commit('addEndPoint', new EndPoint(ep.addr));
-            }
+            if (ep.hasOwnProperty('addr')
+             && ep.hasOwnProperty('rssi')
+             && ep.addr.length === 17
+             && ep.rssi <= 0
+             && ep.rssi >= -100) {
+              // Add end point if unknown.
+              if (!(ep.addr in context.state._epDict)) {
+                context.commit('addEndPoint', new EndPoint(ep.addr));
+              }
 
-            // Add or update relation between access point and endpoint.
-            const aepr = new AccessEndPointRelation(data.ap.name, ep.addr, ep.rssi, Date.now());
-            await context.dispatch('changeAccessEndPointRelation', aepr);
+              // Add or update relation between access point and endpoint.
+              const aepr = new AccessEndPointRelation(data.ap.name, ep.addr, ep.rssi, Date.now());
+              await context.dispatch('changeAccessEndPointRelation', aepr);
+            }
           });
         });
 

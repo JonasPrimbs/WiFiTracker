@@ -22,6 +22,7 @@
             v-if="ep.enabled"
             :color="epColor"
             :endPoint="ep"
+            :filterMac="filterMac"
             :radius="epRadius" />
       </v-group>
     </v-layer>
@@ -65,6 +66,12 @@ export default class TrackMap extends Vue {
    */
   @Prop({ default: [] })
   private endPoints!: EndPoint[];
+
+  /**
+   * Method to filter mac addresses.
+   */
+  @Prop({ default: (value: string): string => { return value; } })
+  private filterMac!: (value: string) => string;
 
   /**
    * Size of map.

@@ -19,7 +19,7 @@
           <md-list v-if="endPoints.length !== 0">
             <md-list-item v-for="ep in endPoints" :key="ep.addr">
               <md-icon>smartphone</md-icon>
-              <span class="md-list-item-text">{{ ep.addr }}</span>
+              <span class="md-list-item-text">{{ filterMac(ep.addr) }}</span>
               <md-switch class="md-list-action" v-model="ep.enabled" />
             </md-list-item>
           </md-list>
@@ -55,7 +55,18 @@
               <md-switch class="md-list-action" v-model="lockAccessPoints" />
             </md-list-item>
             <md-list-item>
-              <md-button @click="clearEndPoints">Clear End Points</md-button>
+              <md-field>
+                <label for="macFilter">End point pseudonymization</label>
+                <md-select id="macFilter" name="macFilter" v-model="macFilter">
+                  <md-option value="none">None</md-option>
+                  <md-option value="first2">First 2 bytes</md-option>
+                  <md-option value="last2">Last 2 bytes</md-option>
+                  <md-option value="md5">MD5</md-option>
+                </md-select>
+              </md-field>
+            </md-list-item>
+            <md-list-item>
+              <md-button class="md-raised md-accent" @click="clearEndPoints">Clear End Points</md-button>
             </md-list-item>
           </md-list>
         </md-tab>
@@ -71,6 +82,7 @@
           :accessPoints="accessPoints"
           :accessPointsDraggable="!lockAccessPoints"
           :endPoints="endPoints"
+          :filterMac="filterMac"
           :size="{ height: windowHeight, width: windowWidth }" />
 
       <AddAccessPointDialog ref="apDialog" />
@@ -86,125 +98,143 @@
 </template>
 
 <script lang="ts">
-import { Component, Vue } from 'vue-property-decorator';
-import AddAccessPointDialog from '../components/AddAccessPointDialog.vue';
-import TrackMap from '../components/TrackMap.vue';
-import AccessEndPointRelation from '../tracker/accessEndPointRelation';
-import AccessPoint from '../tracker/accessPoint';
-import EndPoint from '../tracker/endPoint';
+  import { Component, Vue } from 'vue-property-decorator';
+  import AddAccessPointDialog from '../components/AddAccessPointDialog.vue';
+  import AccessEndPointRelation from '../tracker/accessEndPointRelation';
+  import AccessPoint from '../tracker/accessPoint';
+  import EndPoint from '../tracker/endPoint';
+  import md5 from 'md5';
+  import TrackMap from '../components/TrackMap.vue';
 
-@Component({
-  components: {
-    AddAccessPointDialog,
-    TrackMap,
-  },
-})
-export default class Home extends Vue {
+  @Component({
+    components: {
+      AddAccessPointDialog,
+      TrackMap,
+    },
+  })
+  export default class Home extends Vue {
 
-  /**
-   * Defines references.
-   */
-  public $refs!: {
-    apDialog: AddAccessPointDialog,
-  };
-
-  /**
-   * Gets a list of all access points.
-   */
-  private get accessPoints(): AccessPoint[] {
-    return this.$store.getters.accessPoints;
-  }
-
-  /**
-   * Gets a list of all end points.
-   */
-  private get endPoints(): EndPoint[] {
-    return this.$store.getters.endPoints;
-  }
-
-  /**
-   * Unsubscribes all events before destorying home component.
-   */
-  private beforeDestroy() {
-    window.removeEventListener('resize', this.onWindowSizeChange);
-  }
-
-  /**
-   * Removes all end points.
-   */
-  private clearEndPoints() {
-    this.$store.dispatch('clearEndPoints');
-  }
-
-  /**
-   * Gets the variable data.
-   */
-  private data() {
-    return {
-      lockAccessPoints: false,
-      menuVisible: false,
-      showSnackbar: false,
-      snackbarMessage: null,
-      windowHeight: document.documentElement.clientHeight,
-      windowWidth: document.documentElement.clientWidth,
+    /**
+     * Defines references.
+     */
+    public $refs!: {
+      apDialog: AddAccessPointDialog,
     };
-  }
 
-  /**
-   * Deletes an access point.
-   * @param ap Access point to delete.
-   */
-  private deleteAP(ap: AccessPoint) {
-    this.$store.dispatch('deleteAccessPoint', ap).then(() => {
-      this.showMessage(`Access Point "${ ap.name }" deleted`);
-    });
-  }
+    /**
+     * Gets a list of all access points.
+     */
+    private get accessPoints(): AccessPoint[] {
+      return this.$store.getters.accessPoints;
+    }
 
-  /**
-   * Subscribes all events.
-   */
-  private mounted() {
-    this.$nextTick(function() {
-      window.addEventListener('resize', this.onWindowSizeChange);
-    });
-  }
+    /**
+     * Gets a list of all end points.
+     */
+    private get endPoints(): EndPoint[] {
+      return this.$store.getters.endPoints;
+    }
 
-  /**
-   * Handles changed window size.
-   * @param event Window resize event.
-   */
-  private onWindowSizeChange(event: any) {
-    this.$data.windowHeight = document.documentElement.clientHeight;
-    this.$data.windowWidth = document.documentElement.clientWidth;
-  }
+    /**
+     * Unsubscribes all events before destorying home component.
+     */
+    private beforeDestroy() {
+      window.removeEventListener('resize', this.onWindowSizeChange);
+    }
 
-  /**
-   * Shows the access point dialog.
-   */
-  private showAPDialog(): void {
-    this.$refs.apDialog.showDialog().then((ap: AccessPoint) => {
-      this.showMessage('Access Point "' + ap.name + '" was added');
-      this.$store.dispatch('addAccessPoint', ap).then(() => {
-        this.showMessage(`Access Point "${ ap.name }" added`);
+    /**
+     * Removes all end points.
+     */
+    private clearEndPoints() {
+      this.$store.dispatch('clearEndPoints');
+    }
+
+    /**
+     * Gets the variable data.
+     */
+    private data() {
+      return {
+        macFilter: 'none',
+        lockAccessPoints: false,
+        menuVisible: false,
+        showSnackbar: false,
+        snackbarMessage: null,
+        windowHeight: document.documentElement.clientHeight,
+        windowWidth: document.documentElement.clientWidth,
+      };
+    }
+
+    /**
+     * Deletes an access point.
+     * @param ap Access point to delete.
+     */
+    private deleteAP(ap: AccessPoint) {
+      this.$store.dispatch('deleteAccessPoint', ap).then(() => {
+        this.showMessage(`Access Point "${ ap.name }" deleted`);
       });
-    }).catch((error) => {
-      console.error(error);
-      this.showMessage('Device selection was cancelled');
-    });
-  }
+    }
 
-  /**
-   * Shows a message in the snack bar.
-   * @param message Message to show.
-   */
-  private showMessage(message: string): void {
-    // Set message to snackbar.
-    this.$data.snackbarMessage = message;
+    /**
+     * Filters a MAC address.
+     */
+    private filterMac(value: string): string {
+      switch (this.$data.macFilter) {
+        case 'none':
+          return value;
+        case 'first2':
+          return value.substring(6);
+        case 'last2':
+          return value.substring(0, 11);
+        case 'md5':
+          return md5(value);
+      }
+    }
 
-    // Show snackbar.
-    this.$data.showSnackbar = true;
+    /**
+     * Subscribes all events.
+     */
+    private mounted() {
+      this.$nextTick(function() {
+        window.addEventListener('resize', this.onWindowSizeChange);
+      });
+    }
+
+    /**
+     * Handles changed window size.
+     * @param event Window resize event.
+     */
+    private onWindowSizeChange(event: any) {
+      this.$data.windowHeight = document.documentElement.clientHeight;
+      this.$data.windowWidth = document.documentElement.clientWidth;
+    }
+
+    /**
+     * Shows the access point dialog.
+     */
+    private showAPDialog(): void {
+      this.$refs.apDialog.showDialog().then((ap: AccessPoint) => {
+        this.showMessage('Access Point "' + ap.name + '" was added');
+        this.$store.dispatch('addAccessPoint', ap).then(() => {
+          this.showMessage(`Access Point "${ ap.name }" added`);
+        });
+      }).catch((error) => {
+        console.error(error);
+        this.showMessage('Device selection was cancelled');
+      });
+    }
+
+    /**
+     * Shows a message in the snack bar.
+     * @param message Message to show.
+     */
+    private showMessage(message: string): void {
+      // Set message to snackbar.
+      this.$data.snackbarMessage = message;
+
+      // Show snackbar.
+      this.$data.showSnackbar = true;
+    }
   }
-}
 </script>
 
 <style scoped lang="scss">

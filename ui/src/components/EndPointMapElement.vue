@@ -7,7 +7,7 @@
     <v-text
         v-if="hover"
         :config="textConfig"
-        :text="endPoint.addr" />
+        :text="filterMac(endPoint.addr)" />
   </v-group>
 </template>
 
@@ -33,6 +33,12 @@
      */
     @Prop({ default: DEFAULT_COLOR })
     private color!: string;
+
+    /**
+     * Method to filter mac addresses.
+     */
+    @Prop({ default: (value: string): string => { return value; } })
+    private filterMac!: (value: string) => string;
 
     /**
      * Radius of the end point circle.

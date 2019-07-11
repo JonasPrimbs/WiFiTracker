@@ -54,6 +54,9 @@
               <span class="md-list-item-text">Lock Access Point positions</span>
               <md-switch class="md-list-action" v-model="lockAccessPoints" />
             </md-list-item>
+            <md-list-item>
+              <md-button @click="clearEndPoints">Clear End Points</md-button>
+            </md-list-item>
           </md-list>
         </md-tab>
       </md-tabs>
@@ -124,6 +127,13 @@ export default class Home extends Vue {
    */
   private beforeDestroy() {
     window.removeEventListener('resize', this.onWindowSizeChange);
+  }
+
+  /**
+   * Removes all end points.
+   */
+  private clearEndPoints() {
+    this.$store.dispatch('clearEndPoints');
   }
 
   /**

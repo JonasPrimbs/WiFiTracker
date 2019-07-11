@@ -84,6 +84,18 @@ export default new Vuex.Store({
     },
 
     /**
+     * Clears the list of end points and relations to them.
+     * @param context Context of storage.
+     */
+    clearEndPoints(context): Promise<void> {
+      return new Promise((resolve, reject) => {
+        context.commit('clearEndPoints');
+        context.commit('clearAccessEndPointRelations');
+        resolve();
+      });
+    },
+
+    /**
      * Deletes an access point.
      * @param context Context of store.
      * @param apName Name of Access point to delete.
@@ -215,6 +227,26 @@ export default new Vuex.Store({
 
       // Index the end point.
       state._epDict[ep.addr] = newLength - 1;
+    },
+
+    /**
+     * ! FOR STORAGE INTERNAL USE ONLY !
+     * Clears list and dictionaries of relations between access points and end points.
+     * @param state Storage state.
+     */
+    clearAccessEndPointRelations(state): void {
+      state._aeprList = [];
+      state._aeprDict = {};
+      state._eaprDict = {};
+    },
+
+    /**
+     * Clears list and dictionary of end points.
+     * @param state Storage state.
+     */
+    clearEndPoints(state): void {
+      state._epList = [];
+      state._epDict = {};
     },
 
     /**

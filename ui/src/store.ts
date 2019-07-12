@@ -292,7 +292,7 @@ export default new Vuex.Store({
       // Create temporary list of trilateration relevant triples.
       const rssis: Array<{ rssi: number, x: number, y: number }> = [];
 
-      const timeOffset = Date.now() - 10000;
+      const timeOffset = Date.now() - 60000;
 
       for (const apName in aeprs) {
         // Ensure, that apName is property of aeprs.

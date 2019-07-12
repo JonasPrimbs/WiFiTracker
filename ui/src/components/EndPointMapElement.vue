@@ -37,7 +37,7 @@
     /**
      * Method to filter mac addresses.
      */
-    @Prop({ default: (value: string): string => { return value; } })
+    @Prop({ default: (value: string): string => value })
     private filterMac!: (value: string) => string;
 
     /**

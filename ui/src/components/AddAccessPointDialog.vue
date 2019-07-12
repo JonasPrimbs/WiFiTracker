@@ -232,7 +232,7 @@ export default class AddAccessPointDialog extends Vue {
     this.$data.selecting = true;
 
     // Request access to device.
-    const bluetooth: any = navigator['bluetooth'];
+    const bluetooth: any = navigator.bluetooth;
     bluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: [

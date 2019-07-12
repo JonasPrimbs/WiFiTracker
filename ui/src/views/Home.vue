@@ -98,13 +98,13 @@
 </template>
 
 <script lang="ts">
+  import { Md5 } from 'ts-md5/dist/md5';
   import { Component, Vue } from 'vue-property-decorator';
   import AddAccessPointDialog from '../components/AddAccessPointDialog.vue';
+  import TrackMap from '../components/TrackMap.vue';
   import AccessEndPointRelation from '../tracker/accessEndPointRelation';
   import AccessPoint from '../tracker/accessPoint';
   import EndPoint from '../tracker/endPoint';
-  import md5 from 'md5';
-  import TrackMap from '../components/TrackMap.vue';
 
   @Component({
     components: {
@@ -154,8 +154,8 @@
      */
     private data() {
       return {
-        macFilter: 'none',
         lockAccessPoints: false,
+        macFilter: 'none',
         menuVisible: false,
         showSnackbar: false,
         snackbarMessage: null,
@@ -186,7 +186,9 @@
         case 'last2':
           return value.substring(0, 11);
         case 'md5':
-          return md5(value);
+          return Md5.hashStr(value) as string;
+        default:
+          return value;
       }
     }
 

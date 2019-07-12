@@ -29,3 +29,6 @@ Now in *Tools > Board* select your ESP32 board (f.e. ESP32 Dev Module) and make 
 port in *Tools > Port* (f.e. COM1).
 
 The firmware can now be uploaded to the ESP32 Micro Controller.
+
+## Troubleshooting
+If you are not getting `the sketch is too large...`, select *Tools > Board > Partition Scheme > No OTA (2MB APP/2MB SPIFFS)*, this may solve your problem.
